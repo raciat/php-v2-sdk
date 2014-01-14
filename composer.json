@@ -5,5 +5,11 @@
         {
             "name": "Ooyala"
         }
-    ]
+    ],
+    "autoload": {
+        "psr-0": {
+            "Ooyala": "/",
+            "Ooyala\\Tests": "test/"
+        }
+    }
 }
