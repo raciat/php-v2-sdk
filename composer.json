@@ -1,0 +1,15 @@
+{
+    "name": "ooyala/php-v2-sdk",
+    "description": "The PHP SDK is a client class for our V2 API.",
+    "authors": [
+        {
+            "name": "Ooyala"
+        }
+    ],
+    "autoload": {
+        "psr-0": {
+            "Ooyala": "/",
+            "Ooyala\\Tests": "test/"
+        }
+    }
+}
