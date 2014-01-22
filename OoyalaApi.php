@@ -161,7 +161,7 @@ class OoyalaApi
      * @param array  $requestBody The POST data to send. Defaults to array().
      * @param array  $queryParams The associative array with GET parameters.
      *                            Defaults to array().
-     * @return string the response body.
+     * @return array the response body.
      * @throws OoyalaRequestErrorException if an error occurs.
      */
     public function post($requestPath, $requestBody = array(),
@@ -318,7 +318,7 @@ class OoyalaApi
 
         $response = $this->httpRequest->execute($httpMethod, $url,
             array('payload' => $requestBody));
-        return json_decode($response['body']);
+        return json_decode($response['body'], true);
     }
 
     private function sanitizeAndAddNeededParams($params)
@@ -404,6 +404,7 @@ class OoyalaHttpRequest
         $ch      = curl_init($url);
         $method  = strtoupper($method);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HEADER, true);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
         curl_setopt($ch, CURLOPT_FOLLOWLOCATION,
             $options['shouldFollowLocation']);
@@ -425,17 +426,37 @@ class OoyalaHttpRequest
             throw new OoyalaRequestErrorException("cURL Error $error");
         }
 
-        $headers  = curl_getinfo($ch);
-        $httpCode = $headers["http_code"];
+        $headers = $this->getHeaders($response);
+        $responseBody = substr($response, curl_getinfo($ch, CURLINFO_HEADER_SIZE));
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
         if($httpCode < 400) {
-            return array('status' => $httpCode,
-                'body' => $response);
+            return array('status' => $httpCode, 'body' => $responseBody);
         }
 
-        $error = "HTTP Error ($httpCode), Response: $response.";
-        throw new OoyalaRequestErrorException($error);
+        $error = "HTTP Error ($httpCode), Response: $responseBody.";
+        throw new OoyalaRequestErrorException($error, $httpCode, $headers);
+    }
+
+    /**
+     * Retrieve headers as an associative array from response
+     *
+     * @param string $response
+     * @return array
+     */
+    private function getHeaders($response) {
+        $headers = array();
+        $headerText = substr($response, 0, strpos($response, "\r\n\r\n"));
+        foreach (explode("\r\n", $headerText) as $i => $line) {
+            if ($i === 0) {
+                $headers['http_code'] = $line;
+            } else {
+                list ($key, $value) = explode(': ', $line);
+                $headers[$key] = $value;
+            }
+        }
+        return $headers;
     }
 
     private function applyOptions($options)
@@ -462,4 +483,20 @@ class OoyalaHttpRequest
 }
 
 class OoyalaMethodNotSupportedException extends Exception {}
-class OoyalaRequestErrorException extends Exception {}
+
+class OoyalaRequestErrorException extends Exception {
+    private $headers;
+
+    public function __construct($message, $code = null, $headers = null) {
+        parent::__construct($message, $code);
+        $this->setHeaders($headers);
+    }
+
+    public function setHeaders($headers) {
+        $this->headers = $headers;
+    }
+
+    public function getHeaders() {
+        return $this->headers;
+    }
+}
