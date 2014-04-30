@@ -44,10 +44,14 @@
  *      DIRECT DAMAGES INCURRED UP TO MAXIMUM AMOUNT OF FIFTY DOLLARS ($50).
  */
 
-define('OOYALA_API_DEFAULT_CACHE_BASE_URL', 'http://cdn-api.ooyala.com');
+if (!defined('OOYALA_API_DEFAULT_CACHE_BASE_URL')) {
+    define('OOYALA_API_DEFAULT_CACHE_BASE_URL', 'http://cdn-api.ooyala.com');
+}
 define('OOYALA_API_DEFAULT_BASE_URL', 'https://api.ooyala.com');
 define('OOYALA_API_DEFAULT_EXPIRATION_WINDOW', 15);
-define('OOYALA_API_ROUND_UP_TIME', 300);
+if (!defined('OOYALA_API_ROUND_UP_TIME')) {
+    define('OOYALA_API_ROUND_UP_TIME', 300);
+}
 
 /**
  * This class allows to communicate with Ooyala's API v2.
@@ -118,7 +122,7 @@ class OoyalaApi
      * $ooyalaApi = new OoyalaApi('7ab06', '329b5', array(
      *     'baseUrl' => 'https://api.ooyala.com',
      *     'expirationWindow' => 20));
-     * 
+     *
      * @param string $apiKey    Backlot's API key.
      * @param string $secretKey Backlot's secret key.
      * @param array  $options   Extra options to override the baseUrl and
