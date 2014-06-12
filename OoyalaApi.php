@@ -143,7 +143,7 @@ class OoyalaApi
             'shouldFollowLocation' => true,
             'contentType' => 'application/json',
             'curlOptions' => array(CURLOPT_SSL_VERIFYPEER => false,
-                                   CURLOPT_SSL_VERIFYHOST => false)));
+                CURLOPT_SSL_VERIFYHOST => false)));
     }
 
     /**
@@ -160,6 +160,17 @@ class OoyalaApi
     }
 
     /**
+     * Generates multiple GET requests to the Ooyala API
+     *
+     * @param array $requests Requests data
+     * @return string the response body.
+     */
+    public function getMultiple($requests)
+    {
+        return $this->sendMultipleRequests('GET', $requests);
+    }
+
+    /**
      * Generates a POST request to the Ooyala API.
      * @param string $requestPath The path of the resource from the request.
      * @param array  $requestBody The POST data to send. Defaults to array().
@@ -169,7 +180,7 @@ class OoyalaApi
      * @throws OoyalaRequestErrorException if an error occurs.
      */
     public function post($requestPath, $requestBody = array(),
-        $queryParams = array()
+                         $queryParams = array()
     ) {
         if(empty($requestBody)) {
             $requestBody = json_encode("");
@@ -190,7 +201,7 @@ class OoyalaApi
      * @throws OoyalaRequestErrorException if an error occurs.
      */
     public function put($requestPath, $requestBody = array(),
-        $queryParams = array()
+                        $queryParams = array()
     ) {
         if(empty($requestBody)) {
             $requestBody = json_encode("");
@@ -211,7 +222,7 @@ class OoyalaApi
      * @throws OoyalaRequestErrorException if an error occurs.
      */
     public function patch($requestPath, $requestBody = array(),
-        $queryParams = array()
+                          $queryParams = array()
     ) {
         if(empty($requestBody)) {
             $requestBody = json_encode("");
@@ -253,7 +264,7 @@ class OoyalaApi
      *                the URI of the request.
      */
     public function generateSignature($httpMethod, $requestPath, $queryParams,
-        $requestBody = ""
+                                      $requestBody = ""
     ) {
         $stringToSign  = $this->secretKey . strtoupper($httpMethod);
         $stringToSign .= $requestPath;
@@ -306,7 +317,7 @@ class OoyalaApi
      *                                     request.
      */
     public function sendRequest($httpMethod, $requestPath,
-        $queryParams = array(), $requestBody = ''
+                                $queryParams = array(), $requestBody = ''
     ) {
         if(substr($requestPath, 0, 4) != '/v2/')
             $requestPath = '/v2/' . $requestPath;
@@ -323,6 +334,55 @@ class OoyalaApi
         $response = $this->httpRequest->execute($httpMethod, $url,
             array('payload' => $requestBody));
         return json_decode($response['body'], true);
+    }
+
+    /**
+     * Sends multiple requests to a given paths using the passed HTTP Method
+     *
+     * @param string $httpMethod HTTP method
+     * @param array $requests Requests
+     * @param string $requestBody The body of the request. On default equals ""
+     * @return array The JSON parsed response if it was success.
+     * @throws OoyalaMethodNotSupportedException Method not supported $httpMethod
+     */
+    public function sendMultipleRequests($httpMethod, $requests = array(), $requestBody = '') {
+        // HTTP method
+        $httpMethod = strtoupper($httpMethod);
+        if (!in_array($httpMethod, self::$supportedMethods)) {
+            throw new OoyalaMethodNotSupportedException('Method not supported ' . $httpMethod);
+        }
+
+        $preparedRequests = array();
+
+        // Loop through request to prepare them
+        if (count($requests) > 0) {
+            foreach ($requests as $id => $request) {
+                $requestPath = $request['url'];
+                // Ensure about using proper version of the API
+                if (substr($requestPath, 0, 4) != '/v2/') {
+                    $requestPath = '/v2/' . $requestPath;
+                }
+
+                // Prepare parameters
+                $params = $this->sanitizeAndAddNeededParams($request['options']);
+                $params['signature'] = $this->generateSignature(
+                    $httpMethod,
+                    $requestPath,
+                    array_merge($params, $request['options']),
+                    $requestBody
+                );
+                // Build URL with proper signature
+                $url = $this->buildURL($httpMethod, $requestPath, $params);
+
+                $preparedRequests[$id] = array('url' => $url, 'options' => array('payload' => $requestBody));
+            }
+        }
+
+        // Send multiple requests in parallel
+        $httpMultiRequest = new OoyalaHttpMultiRequest();
+        $responses = $httpMultiRequest->executeMulti($httpMethod, $preparedRequests);
+
+        return $responses;
     }
 
     private function sanitizeAndAddNeededParams($params)
@@ -351,7 +411,7 @@ class OoyalaHttpRequest
     /**
      * Holds the main options.
      */
-    private static $optionKeys = array('contentType', 'curlOptions',
+    protected static $optionKeys = array('contentType', 'curlOptions',
         'shouldFollowLocation');
 
     /**
@@ -419,8 +479,8 @@ class OoyalaHttpRequest
         if(array_key_exists('payload', $options) && strlen($options['payload'])) {
             curl_setopt($ch, CURLOPT_POSTFIELDS, $options['payload']);
         } else {
-    		curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Length: 0'));
-		}
+            curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Length: 0'));
+        }
         curl_setopt_array($ch, $options['curlOptions']);
 
         $response = curl_exec($ch);
@@ -449,7 +509,7 @@ class OoyalaHttpRequest
      * @param string $response
      * @return array
      */
-    private function getHeaders($response) {
+    protected function getHeaders($response) {
         $headers = array();
         $headerText = substr($response, 0, strpos($response, "\r\n\r\n"));
         foreach (explode("\r\n", $headerText) as $i => $line) {
@@ -463,7 +523,7 @@ class OoyalaHttpRequest
         return $headers;
     }
 
-    private function applyOptions($options)
+    protected function applyOptions($options)
     {
         foreach(self::$optionKeys as $key) {
             if(array_key_exists($key, $options))
@@ -471,7 +531,7 @@ class OoyalaHttpRequest
         }
     }
 
-    private function extractOptions($options)
+    protected function extractOptions($options)
     {
         $result = array();
         foreach(self::$optionKeys as $key) {
@@ -502,5 +562,86 @@ class OoyalaRequestErrorException extends Exception {
 
     public function getHeaders() {
         return $this->headers;
+    }
+}
+
+/**
+ * Class OoyalaHttpMultiRequest
+ *
+ * Sends multiple requests in parallel (by using curl_multi_*)
+ */
+class OoyalaHttpMultiRequest extends OoyalaHttpRequest {
+    /**
+     * Makes multiple requests in parallel
+     *
+     * @param string $method HTTP method
+     * @param array $requests Requests data (URLs and options)
+     * @return array
+     */
+    public function executeMulti($method, $requests = array())
+    {
+        $responses = array();
+        if (count($requests) > 0) {
+            $multi = curl_multi_init();
+            $channels = array();
+
+            // Loop through the URLs, create curl-handles and attach the handles to our multi-request
+            foreach ($requests as $id => $request) {
+                $options = $this->extractOptions($request['options']);
+
+                // Set cURL options
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, $request['url']);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_HEADER, true);
+                curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $options['shouldFollowLocation']);
+                if(array_key_exists('contentType', $options)) {
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: ' . $options['contentType']));
+                }
+                if(array_key_exists('payload', $options) && strlen($options['payload'])) {
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, $options['payload']);
+                } else {
+                    curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Length: 0'));
+                }
+                curl_setopt_array($ch, $options['curlOptions']);
+
+                // Add to multi-handler
+                curl_multi_add_handle($multi, $ch);
+                $channels[$id] = $ch;
+            }
+
+            // While we're still active, execute curl
+            $active = null;
+            do {
+                $mrc = curl_multi_exec($multi, $active);
+            } while ($mrc == CURLM_CALL_MULTI_PERFORM);
+
+            while ($active && $mrc == CURLM_OK) {
+                // Wait for activity on any curl-connection
+                if (curl_multi_select($multi) == -1) {
+                    continue;
+                }
+
+                // Continue to exec until curl is ready to give us more data
+                do {
+                    $mrc = curl_multi_exec($multi, $active);
+                } while ($mrc == CURLM_CALL_MULTI_PERFORM);
+            }
+
+            // Loop through the channels and retrieve the received content, then remove the handle from the multi-handle
+            foreach ($channels as $id => $channel) {
+                $response = curl_multi_getcontent($channel);
+                $responseBody = substr($response, curl_getinfo($channel, CURLINFO_HEADER_SIZE));
+                $responses[$id] = json_decode($responseBody, true);
+
+                curl_multi_remove_handle($multi, $channel);
+            }
+
+            // Close the multi-handle and return our results
+            curl_multi_close($multi);
+        }
+
+        return $responses;
     }
 }
