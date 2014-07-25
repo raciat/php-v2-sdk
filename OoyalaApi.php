@@ -331,9 +331,52 @@ class OoyalaApi
             $requestPath, array_merge($params, $queryParams), $requestBody);
         $url = $this->buildURL($httpMethod, $requestPath, $params);
 
+        // Start stopwatch
+        $startTime = microtime(true);
+
         $response = $this->httpRequest->execute($httpMethod, $url,
             array('payload' => $requestBody));
+
+        // Log a request
+        $this->logRequest($startTime, $url, $httpMethod);
+
         return json_decode($response['body'], true);
+    }
+
+    /**
+     * Log a request
+     *
+     * @param float $startTime
+     * @param string $url
+     * @param string $httpMethod
+     */
+    protected function logRequest($startTime, $url, $httpMethod) {
+        // Stop stopwatch
+        $stopTime = microtime(true);
+
+        // Decode an URL
+        $logUrl = urldecode(str_replace('http://api.ooyala.com', '', $url));
+        // Remove expires, api_key and signature params to clean a bit
+        $logUrl = preg_replace('#(.*)(&?)expires(.*)#', '$1', $logUrl);
+        // Add method
+        $logUrl = sprintf('[%s] "%s"', $httpMethod, $logUrl);
+
+        // Get timestamp
+        $timestamp = time();
+        // Format the timestamp
+        $logTimestamp = date('[Y-m-d H:i:s]', $timestamp);
+
+        // Log a response time
+        $logTime = floor(($stopTime - $startTime) * 1000) . ' ms';
+
+        // Log a message
+        $logMessage = sprintf('%s %s %s', $logTimestamp, $logUrl, $logTime) . PHP_EOL;
+
+        $logPath = getcwd() . '/data/log/ooyala_requests.log';
+        if (!file_exists($logPath)) {
+            touch($logPath);
+        }
+        file_put_contents($logPath, $logMessage, FILE_APPEND);
     }
 
     /**
