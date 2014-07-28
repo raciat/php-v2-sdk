@@ -374,6 +374,7 @@ class OoyalaApi
         $logPath = getcwd() . '/data/log/ooyala_requests.log';
         if (!file_exists($logPath)) {
             touch($logPath);
+            chmod($logPath, 0666);
         }
         file_put_contents($logPath, $logMessage, FILE_APPEND);
     }
