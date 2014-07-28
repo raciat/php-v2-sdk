@@ -358,8 +358,7 @@ class OoyalaApi
         $logUrl = urldecode(str_replace('http://api.ooyala.com', '', $url));
         // Remove expires, api_key and signature params to clean a bit
         $logUrl = preg_replace('#(.*)(&?)expires(.*)#', '$1', $logUrl);
-        // Add method
-        $logUrl = sprintf('[%s] "%s"', $httpMethod, $logUrl);
+        $logUrl = sprintf('"%s"', $logUrl);
 
         // Get timestamp
         $timestamp = time();
@@ -367,10 +366,10 @@ class OoyalaApi
         $logTimestamp = date('[Y-m-d H:i:s]', $timestamp);
 
         // Log a response time
-        $logTime = floor(($stopTime - $startTime) * 1000) . ' ms';
+        $logTime = floor(($stopTime - $startTime) * 1000);
 
         // Log a message
-        $logMessage = sprintf('%s %s %s', $logTimestamp, $logUrl, $logTime) . PHP_EOL;
+        $logMessage = sprintf('%s %s method=%s ms=%s', $logTimestamp, $logUrl, $httpMethod, $logTime) . PHP_EOL;
 
         $logPath = getcwd() . '/data/log/ooyala_requests.log';
         if (!file_exists($logPath)) {
