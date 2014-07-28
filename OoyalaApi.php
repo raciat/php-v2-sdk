@@ -354,6 +354,16 @@ class OoyalaApi
         // Stop stopwatch
         $stopTime = microtime(true);
 
+        // Omit some requests
+        $ommitRequests = array('remaining_credits_and_reset_time');
+        if (count($ommitRequests) > 0) {
+            foreach ($ommitRequests as $needle) {
+                if (strpos($url, $needle) !== false) {
+                    return;
+                }
+            }
+        }
+
         // Decode an URL
         $logUrl = urldecode(str_replace('http://api.ooyala.com', '', $url));
         // Remove expires, api_key and signature params to clean a bit
