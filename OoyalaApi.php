@@ -48,7 +48,7 @@ if (!defined('OOYALA_API_DEFAULT_CACHE_BASE_URL')) {
     define('OOYALA_API_DEFAULT_CACHE_BASE_URL', 'http://cdn-api.ooyala.com');
 }
 define('OOYALA_API_DEFAULT_BASE_URL', 'https://api.ooyala.com');
-define('OOYALA_API_DEFAULT_EXPIRATION_WINDOW', 15);
+define('OOYALA_API_DEFAULT_EXPIRATION_WINDOW', 45);
 if (!defined('OOYALA_API_ROUND_UP_TIME')) {
     define('OOYALA_API_ROUND_UP_TIME', 300);
 }
@@ -327,6 +327,7 @@ class OoyalaApi
                 . $httpMethod);
         }
         $params = $this->sanitizeAndAddNeededParams($queryParams);
+        $params['cacheBreaker'] = microtime(true) * 10000;
         $params['signature'] = $this->generateSignature($httpMethod,
             $requestPath, array_merge($params, $queryParams), $requestBody);
         $url = $this->buildURL($httpMethod, $requestPath, $params);
