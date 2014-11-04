@@ -340,6 +340,7 @@ class OoyalaApi
 
         // Log a request
         $this->logRequest($startTime, $url, $httpMethod);
+        $response['body'] = $this->stripNonJsonResponse($response);
 
         return json_decode($response['body'], true);
     }
@@ -453,6 +454,23 @@ class OoyalaApi
             $params['api_key'] = $this->apiKey;
         }
         return $params;
+    }
+
+    /**
+     * This method is a workaround for discover/editorial endpoint returns improper result on POST
+     *
+     * @link https://na5.salesforce.com/5007000000pbCrL
+     *
+     * @param array $response
+     * @return array
+     */
+    private function stripNonJsonResponse(array $response) {
+        $body = $response['body'];
+
+        $trimmedBeginning = str_replace('Results: <pre>', '', $body);
+        $trimmed = str_replace('</pre>', '', $trimmedBeginning);
+
+        return $trimmed;
     }
 }
 
