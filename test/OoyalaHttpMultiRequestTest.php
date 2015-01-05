@@ -2,16 +2,16 @@
 namespace Ooyala\Tests;
 
 use PHPUnit_Framework_TestCase;
-use OoyalaHttpRequest;
+use OoyalaHttpMultiRequest;
 use OoyalaRequestErrorException;
 
 require_once '../vendor/autoload.php';
 
-class OoyalaHttpRequestTest extends PHPUnit_Framework_TestCase
+class OoyalaHttpMultiRequestTest extends PHPUnit_Framework_TestCase
 {
     public function testInitializationWithDefaultOptions()
     {
-        $ooyalaHttpRequest = new OoyalaHttpRequest();
+        $ooyalaHttpRequest = new OoyalaHttpMultiRequest();
 
         $this->assertSame($ooyalaHttpRequest::$curlDefaultOptions, $ooyalaHttpRequest->curlOptions);
         $this->assertFalse($ooyalaHttpRequest->shouldFollowLocation);
@@ -20,10 +20,11 @@ class OoyalaHttpRequestTest extends PHPUnit_Framework_TestCase
 
     /**
      * @see http://mx.php.net/manual/en/function.curl-setopt.php
-     * Manual states that CURLOPT_SSL_VERIFYHOST should contain
+     * Manual states that CURLOPT_SSL_VERIFYHOST should contain an integer but original library
+     * uses boolean.
      */
     public function testDefaultCurlOptions() {
-        $ooyalaHttpRequest = new OoyalaHttpRequest();
+        $ooyalaHttpRequest = new OoyalaHttpMultiRequest();
 
         $expectedCurlDefaults = array(
             CURLOPT_SSL_VERIFYPEER      => false,
@@ -41,7 +42,7 @@ class OoyalaHttpRequestTest extends PHPUnit_Framework_TestCase
             CURLOPT_DNS_CACHE_TIMEOUT   => 25,
         );
 
-        $ooyalaHttpRequest = new OoyalaHttpRequest(array(
+        $ooyalaHttpRequest = new OoyalaHttpMultiRequest(array(
             'curlOptions' => $customOptions
         ));
 
@@ -53,7 +54,7 @@ class OoyalaHttpRequestTest extends PHPUnit_Framework_TestCase
     {
         $contentType = 'anyType';
 
-        $ooyalaHttpRequest = new OoyalaHttpRequest(array(
+        $ooyalaHttpRequest = new OoyalaHttpMultiRequest(array(
             'contentType' => $contentType));
 
         $this->assertSame($contentType, $ooyalaHttpRequest->contentType);
@@ -71,9 +72,9 @@ class OoyalaHttpRequestTest extends PHPUnit_Framework_TestCase
      *
      * New implementation merges them correctly, which is tested here.
      *
-     * This test is indirect as there is no way to access curl options from outside execute.
+     * This test is indirect as there is no way to access curl options from outside executeMulti.
      */
-    public function testOverwritingOptionsWhenExecute() {
+    public function testOverwritingOptionsWhenExecuteMulti() {
         $contentType = 'anyType';
         $followLocation = true;
 
@@ -85,10 +86,16 @@ class OoyalaHttpRequestTest extends PHPUnit_Framework_TestCase
             'shouldFollowLocation' => $followLocation
         );
 
-        $ooyalaHttpRequest = new OoyalaHttpRequest();
+        $ooyalaHttpRequest = new OoyalaHttpMultiRequest();
+        $requests = array(
+            array(
+                'url' => 'http://127.0.0.1/invalid/location.json',
+                'options' => $customOptions
+            )
+        );
 
         try {
-            $ooyalaHttpRequest->execute('get', 'http://127.0.0.1/invalid/location.json', $customOptions);
+            $ooyalaHttpRequest->executeMulti('get', $requests);
         } catch (OoyalaRequestErrorException $e) {
             // disregard connection errors, check curl options
             $expectedCurlOptions = $this->getExpectedCurlOptions($customOptions['curlOptions']);
@@ -100,57 +107,10 @@ class OoyalaHttpRequestTest extends PHPUnit_Framework_TestCase
     }
 
     /**
-     * This test shows the real-life use-case of execute options
-     */
-    public function testPassingPayloadAsOptionsToExecute() {
-        $ooyalaHttpRequest = new OoyalaHttpRequest();
-
-        $payload = array('payload' => 'any request body');
-        try {
-            $ooyalaHttpRequest->execute('get', 'http://127.0.0.1/invalid/location.json', $payload);
-        } catch (OoyalaRequestErrorException $e) {
-            // disregard connection errors, check curl options
-            $this->assertSame(OoyalaHttpRequest::$curlDefaultOptions, $ooyalaHttpRequest->curlOptions);
-
-            // In order to check payload, either curl_exec needs to be mocked or valid response needs to be returned
-        }
-    }
-
-    /**
-     * @expectedException OoyalaRequestErrorException
-     */
-    public function testExecuteWithError()
-    {
-        $ooyalaHttpRequest = new OoyalaHttpRequest();
-        $ooyalaHttpRequest->execute('get', 'http://invalid');
-    }
-
-    /**
-     * @expectedException OoyalaRequestErrorException
-     */
-    public function testExecuteWithResponseError()
-    {
-        $ooyalaHttpRequest = new OoyalaHttpRequest();
-        $ooyalaHttpRequest->execute('get', 'http://127.0.0.1/invalid/location.json');
-    }
-
-    public function testWithOverridingOptions()
-    {
-        $this->markTestSkipped('It creates a real request that requires 127.0.0.1:80 to answer. Skipping.');
-
-        $ooyalaHttpRequest = new OoyalaHttpRequest();
-        $response = $ooyalaHttpRequest->execute('get', 'http://127.0.0.1', array(
-            'payload' => 'payload',
-            'contentType' => 'text/plain'));
-
-        $this->assertEquals(200, $response['status']);
-    }
-
-    /**
      * @param array $customOpts
      * @return array
      */
     private function getExpectedCurlOptions(array $customOpts) {
-        return array_replace(OoyalaHttpRequest::$curlDefaultOptions, $customOpts);
+        return array_replace(OoyalaHttpMultiRequest::$curlDefaultOptions, $customOpts);
     }
 }

@@ -139,11 +139,14 @@ class OoyalaApi
             $options['cacheBaseUrl'] : OOYALA_API_DEFAULT_CACHE_BASE_URL;
         $this->expirationWindow = isset($options['expirationWindow']) ?
             $options['expirationWindow'] : OOYALA_API_DEFAULT_EXPIRATION_WINDOW;
+
+        $curlOptions = isset($options['curlOptions']) ? $options['curlOptions'] : array();
+
         $this->httpRequest = new OoyalaHttpRequest(array(
-            'shouldFollowLocation' => true,
-            'contentType' => 'application/json',
-            'curlOptions' => array(CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_SSL_VERIFYHOST => false)));
+            'shouldFollowLocation'  => true,
+            'contentType'           => 'application/json',
+            'curlOptions'           => $curlOptions
+        ));
     }
 
     /**
@@ -238,7 +241,6 @@ class OoyalaApi
      * @param string $requestPath The path of the resource from the request.
      * @param array  $queryParams The associative array with GET parameters.
      *                            Defaults to array().
-     * @param string $requestBody The POST data to send. Defaults to "".
      * @return string the response body.
      * @throws OoyalaRequestErrorException if an error occurs.
      */
@@ -439,6 +441,10 @@ class OoyalaApi
         return $responses;
     }
 
+    /**
+     * @param mixed $params
+     * @return mixed
+     */
     private function sanitizeAndAddNeededParams($params)
     {
         foreach($params as $key => $value) {
@@ -463,10 +469,16 @@ class OoyalaApi
 class OoyalaHttpRequest
 {
     /**
-     * Holds the main options.
+     * Default curl options.
+     * @see http://mx.php.net/manual/en/function.curl-setopt.php for the
+     *      available options.
+     * @var array
      */
-    protected static $optionKeys = array('contentType', 'curlOptions',
-        'shouldFollowLocation');
+    public static $curlDefaultOptions = array(
+        CURLOPT_SSL_VERIFYPEER      => false,
+        CURLOPT_SSL_VERIFYHOST      => false,
+        CURLOPT_DNS_CACHE_TIMEOUT   => 0,
+    );
 
     /**
      * Holds the default content type for all the requests.
@@ -489,6 +501,12 @@ class OoyalaHttpRequest
     public $shouldFollowLocation;
 
     /**
+     * Holds the main options.
+     */
+    protected static $optionKeys = array('contentType', 'curlOptions',
+        'shouldFollowLocation');
+
+    /**
      * Constructor.
      * @param array  $options An associative array that contains default options
      *                        for the requests. Defaults to array().
@@ -496,14 +514,15 @@ class OoyalaHttpRequest
      *                                         requests.
      *                        'curlOptions' => cURL options that will be added
      *                                         to all requests. Defaults to
-     *                                         array().
+     *                                         self::$curlDefaultOptions.
+     *                                         See applyCurlOptions for details.
      *                        'shouldFollowLocation' => If it should follow 300
      *                                                  responses. Defaults to
      *                                                  false.
      */
     function __construct($options = array())
     {
-        $this->curlOptions = array();
+        $this->curlOptions = self::$curlDefaultOptions;
         $this->shouldFollowLocation = false;
         $this->applyOptions($options);
     }
@@ -518,9 +537,16 @@ class OoyalaHttpRequest
      */
     public function execute($method, $url, $options = array())
     {
+        if (!empty($options)) {
+            $this->applyOptions($options);
+        }
+
         $options = $this->extractOptions($options);
+
         $ch      = curl_init($url);
         $method  = strtoupper($method);
+
+        // TODO: Move curl related options to $curlDefaultOptions
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HEADER, true);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
@@ -535,7 +561,9 @@ class OoyalaHttpRequest
         } else {
             curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Length: 0'));
         }
-        curl_setopt_array($ch, $options['curlOptions']);
+
+        // copy array so that curl_setopt_array does not do any casting on array reference
+        curl_setopt_array($ch, (array) $options['curlOptions']);
 
         $response = curl_exec($ch);
         if($response === false) {
@@ -563,7 +591,8 @@ class OoyalaHttpRequest
      * @param string $response
      * @return array
      */
-    protected function getHeaders($response) {
+    protected function getHeaders($response)
+    {
         $headers = array();
         $headerText = substr($response, 0, strpos($response, "\r\n\r\n"));
         foreach (explode("\r\n", $headerText) as $i => $line) {
@@ -577,26 +606,65 @@ class OoyalaHttpRequest
         return $headers;
     }
 
+    /**
+     * Used for parsing options when creating HTTP object
+     *
+     * @param $options
+     */
     protected function applyOptions($options)
     {
-        foreach(self::$optionKeys as $key) {
-            if(array_key_exists($key, $options))
-                $this->$key = $options[$key];
+        foreach (self::$optionKeys as $key) {
+            if (array_key_exists($key, $options)) {
+                if ($key === 'curlOptions') {
+                    $this->$key = $this->applyCurlOptions($options[$key]);
+                } else {
+                    $this->$key = $options[$key];
+                }
+            }
         }
     }
 
+    /**
+     * Used for parsing options passed to execute() or executeMulti()
+     *
+     * @param $options
+     * @return array
+     */
     protected function extractOptions($options)
     {
         $result = array();
         foreach(self::$optionKeys as $key) {
             if(array_key_exists($key, $options)) {
-                $result[$key] = $options[$key];
+                if ($key === 'curlOptions') {
+                    $result[$key] = $this->applyCurlOptions($options[$key]);
+                } else {
+                    $result[$key] = $options[$key];
+                }
                 unset($options[$key]);
             } else if(isset($this->$key)) {
                 $result[$key] = $this->$key;
             }
         }
         return array_merge($result, $options);
+    }
+
+    /**
+     * Merge default curl options with passed ones
+     * Any passed options supersedes the defaults.
+     *
+     * @param array $options
+     * @return array
+     */
+    private function applyCurlOptions(array $options)
+    {
+        // seed resulting options with defaults
+        $result = self::$curlDefaultOptions;
+
+        foreach ($options as $option => $value) {
+            $result[$option] = $value;
+        }
+
+        return $result;
     }
 }
 
