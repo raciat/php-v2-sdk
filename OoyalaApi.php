@@ -140,12 +140,9 @@ class OoyalaApi
         $this->expirationWindow = isset($options['expirationWindow']) ?
             $options['expirationWindow'] : OOYALA_API_DEFAULT_EXPIRATION_WINDOW;
 
-        $curlOptions = isset($options['curlOptions']) ? $options['curlOptions'] : array();
-
         $this->httpRequest = new OoyalaHttpRequest(array(
             'shouldFollowLocation'  => true,
-            'contentType'           => 'application/json',
-            'curlOptions'           => $curlOptions
+            'contentType'           => 'application/json'
         ));
     }
 
@@ -522,8 +519,11 @@ class OoyalaHttpRequest
      */
     function __construct($options = array())
     {
+        // initialize default curl options
         $this->curlOptions = self::$curlDefaultOptions;
         $this->shouldFollowLocation = false;
+
+        // when $options['curlOptions'] is set, applyOptions can overwrite default ones
         $this->applyOptions($options);
     }
 
@@ -537,16 +537,11 @@ class OoyalaHttpRequest
      */
     public function execute($method, $url, $options = array())
     {
-        if (!empty($options)) {
-            $this->applyOptions($options);
-        }
-
         $options = $this->extractOptions($options);
 
         $ch      = curl_init($url);
         $method  = strtoupper($method);
 
-        // TODO: Move curl related options to $curlDefaultOptions
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HEADER, true);
         curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
@@ -561,9 +556,7 @@ class OoyalaHttpRequest
         } else {
             curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Length: 0'));
         }
-
-        // copy array so that curl_setopt_array does not do any casting on array reference
-        curl_setopt_array($ch, (array) $options['curlOptions']);
+        curl_setopt_array($ch, $options['curlOptions']);
 
         $response = curl_exec($ch);
         if($response === false) {
@@ -607,26 +600,17 @@ class OoyalaHttpRequest
     }
 
     /**
-     * Used for parsing options when creating HTTP object
-     *
      * @param $options
      */
-    protected function applyOptions($options)
-    {
+    protected function applyOptions($options) {
         foreach (self::$optionKeys as $key) {
             if (array_key_exists($key, $options)) {
-                if ($key === 'curlOptions') {
-                    $this->$key = $this->applyCurlOptions($options[$key]);
-                } else {
-                    $this->$key = $options[$key];
-                }
+                $this->$key = $options[$key];
             }
         }
     }
 
     /**
-     * Used for parsing options passed to execute() or executeMulti()
-     *
      * @param $options
      * @return array
      */
@@ -635,36 +619,13 @@ class OoyalaHttpRequest
         $result = array();
         foreach(self::$optionKeys as $key) {
             if(array_key_exists($key, $options)) {
-                if ($key === 'curlOptions') {
-                    $result[$key] = $this->applyCurlOptions($options[$key]);
-                } else {
-                    $result[$key] = $options[$key];
-                }
+                $result[$key] = $options[$key];
                 unset($options[$key]);
             } else if(isset($this->$key)) {
                 $result[$key] = $this->$key;
             }
         }
         return array_merge($result, $options);
-    }
-
-    /**
-     * Merge default curl options with passed ones
-     * Any passed options supersedes the defaults.
-     *
-     * @param array $options
-     * @return array
-     */
-    private function applyCurlOptions(array $options)
-    {
-        // seed resulting options with defaults
-        $result = self::$curlDefaultOptions;
-
-        foreach ($options as $option => $value) {
-            $result[$option] = $value;
-        }
-
-        return $result;
     }
 }
 
