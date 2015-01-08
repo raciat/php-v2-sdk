@@ -44,11 +44,10 @@
  *      DIRECT DAMAGES INCURRED UP TO MAXIMUM AMOUNT OF FIFTY DOLLARS ($50).
  */
 
-if (!defined('OOYALA_API_DEFAULT_CACHE_BASE_URL')) {
-    define('OOYALA_API_DEFAULT_CACHE_BASE_URL', 'http://cdn-api.ooyala.com');
-}
+define('OOYALA_API_DEFAULT_CACHE_BASE_URL', 'http://cdn-api.ooyala.com');
 define('OOYALA_API_DEFAULT_BASE_URL', 'https://api.ooyala.com');
 define('OOYALA_API_DEFAULT_EXPIRATION_WINDOW', 120);
+
 if (!defined('OOYALA_API_ROUND_UP_TIME')) {
     define('OOYALA_API_ROUND_UP_TIME', 300);
 }
@@ -133,10 +132,13 @@ class OoyalaApi
     {
         $this->apiKey    = $apiKey;
         $this->secretKey = $secretKey;
+
         $this->baseUrl   = array_key_exists('baseUrl', $options) ?
             $options['baseUrl'] : OOYALA_API_DEFAULT_BASE_URL;
+
         $this->cacheBaseUrl = array_key_exists('cacheBaseUrl', $options) ?
             $options['cacheBaseUrl'] : OOYALA_API_DEFAULT_CACHE_BASE_URL;
+
         $this->expirationWindow = isset($options['expirationWindow']) ?
             $options['expirationWindow'] : OOYALA_API_DEFAULT_EXPIRATION_WINDOW;
 
@@ -602,7 +604,8 @@ class OoyalaHttpRequest
     /**
      * @param $options
      */
-    protected function applyOptions($options) {
+    protected function applyOptions($options)
+    {
         foreach (self::$optionKeys as $key) {
             if (array_key_exists($key, $options)) {
                 $this->$key = $options[$key];
